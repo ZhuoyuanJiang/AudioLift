@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*.so
+.venv*/
+.env
+.env.*
+.pytest_cache/
+.ruff_cache/
+build/
+*.egg-info/
+/checkpoints/
+/data/*
+!/data/README.md
+/outputs/
+wandb/
+external/mediapipe_models/*.task
+*.log

@@ -1,0 +1,25 @@
+# Architecture and Gaussian parameters for AudioLift-gaussianlifter inference.
+
+model:
+  class_name: stage2.models.gslrm.GSLRM
+
+  image_tokenizer:
+    image_size: 608
+    patch_size: 8
+    in_channels: 9
+
+  transformer:
+    d: 1024
+    d_head: 64
+    n_layer: 24
+
+  gaussians:
+    n_gaussians: 2
+    sh_degree: 0
+    scaling_clamp_max: -1.20
+    upsampler:
+      upsample_factor: 1
+
+  add_refsrc_marker: false
+  hard_pixelalign: true
+  use_custom_plucker: true

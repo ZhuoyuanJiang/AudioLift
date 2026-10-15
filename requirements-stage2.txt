@@ -1,0 +1,23 @@
+# Python 3.10. Install the pinned CUDA rasterizer separately (see README).
+--extra-index-url https://download.pytorch.org/whl/cu124
+torch==2.4.0+cu124
+torchvision==0.19.0+cu124
+xformers==0.0.27.post2
+numpy==1.26.4
+pillow==10.4.0
+opencv-python-headless==4.10.0.84
+scipy==1.15.3
+matplotlib==3.7.5
+einops==0.8.0
+easydict==1.13
+PyYAML==6.0.3
+rich==14.2.0
+tqdm==4.67.1
+jaxtyping==0.2.19
+plyfile==1.0.3
+videoio==0.3.0
+transformers==4.44.2
+huggingface_hub==0.35.3
+setuptools==80.9.0
+wheel==0.45.1
+ninja==1.13.0

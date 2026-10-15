@@ -1,0 +1,28 @@
+# Python 3.10; versions taken from the working Stage-1 runtime.
+# Install this stage in its own environment, separate from Stage 2.
+--extra-index-url https://download.pytorch.org/whl/cu126
+torch==2.7.0+cu126
+torchvision==0.22.0+cu126
+torchaudio==2.7.0+cu126
+diffusers==0.30.1
+transformers==4.51.3
+huggingface_hub==0.36.0
+tokenizers==0.21.4
+accelerate==1.12.0
+numpy==2.2.6
+safetensors==0.7.0
+einops==0.8.1
+omegaconf==2.3.0
+pillow==12.0.0
+librosa==0.11.0
+soundfile==0.13.1
+scipy==1.15.3
+imageio==2.37.2
+imageio-ffmpeg==0.6.0
+av==16.0.1
+opencv-contrib-python==4.11.0.86
+ftfy==6.3.1
+sentencepiece==0.2.1
+mediapipe==0.10.32
+beautifulsoup4==4.14.2
+protobuf==6.33.1
