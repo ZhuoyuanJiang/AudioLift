@@ -50,5 +50,12 @@ export LIBRARY_PATH="$CUDA_HOME/lib${LIBRARY_PATH:+:$LIBRARY_PATH}"
 ```
 
 Set these before building the extension. The pip CUDA libraries alone do not
-provide the compiler. Activate the appropriate environment before each stage,
-or set `STAGE1_PYTHON` / `STAGE2_PYTHON` to its Python executable.
+provide the compiler.
+
+After both environments are installed, `python inference.py` selects
+`.venv-stage1/bin/python` and `.venv-stage2/bin/python` automatically and runs the
+stages in sequence. For environments elsewhere, pass `--stage1-python` and
+`--stage2-python`, or set `STAGE1_PYTHON` / `STAGE2_PYTHON` to their Python
+executables. See the [inference command](../README.md#inference). The individual
+`inference_stage1.py` and `inference_stage2.py` entrypoints still require the
+appropriate active environment or Python override.
