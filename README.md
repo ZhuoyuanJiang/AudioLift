@@ -7,8 +7,8 @@ Stage 1 generates five synchronized views; Stage 2 reconstructs and renders
 an animated head from those views.
 
 > This release provides inference code. Training code is not included.
-> Code and models are currently private for release review; downloading models
-> requires an authorized Hugging Face login.
+> Model downloads currently require an authorized Hugging Face login because
+> the model repository remains private.
 
 ## Installation
 
