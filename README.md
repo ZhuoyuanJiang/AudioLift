@@ -133,26 +133,88 @@ such as `outputs/example/stage2-retry`; there is no need to regenerate Stage 1.
 ## Repository layout
 
 ```text
-inference.py                    Both stages in one command
-inference_stage1.py              Stage 1 only
-inference_stage2.py              Stage 2 only
-requirements-stage1.txt          Stage-1 environment
-requirements-stage2.txt          Stage-2 environment
-stage1/
-  models/                       Video model components
-  dist/                         Optional distributed inference support
-  utils/                        Video, latent and scheduler helpers
-stage2/
-  models/                       Gaussian reconstruction model
-configs/
-  stage1/                       Wan settings and reference framing
-  stage2/                       Reconstruction settings and calibrated cameras
-data/                           Local portrait and audio inputs
-scripts/
-  download_models.py            Model download and verification
-  preprocess/                   Reference portrait preparation
-tests/                          Inference and download regression checks
-docs/                           Installation and checkpoint details
+AudioLift/
+├── inference.py                          # Run Stage 1 → Stage 2 in one command
+├── inference_stage1.py                   # Run Stage 1 only
+├── inference_stage2.py                   # Run Stage 2 only
+├── requirements-stage1.txt               # Video generation dependencies
+├── requirements-stage2.txt               # Reconstruction/rendering dependencies
+│
+├── configs/                             # Model settings, framing and cameras
+│   ├── stage1/
+│   │   ├── wan_civitai.yaml              # Wan components, asset paths, scheduler
+│   │   └── nersemble_framing_calibration.json  # Target face size and position
+│   └── stage2/
+│       ├── inference.yaml               # Gaussian reconstruction settings
+│       └── cameras/                     # Four grid cameras + separate frontal camera
+│           ├── opencv_cameras_nersemble_017_832x1216.json
+│           └── opencv_cameras_nersemble_frontal_canonical_832x1216.json
+│
+├── stage1/                              # Portrait + audio → five-view video
+│   ├── inference.sh                     # Check inputs/assets and launch sampling
+│   ├── sampling.py                      # Audio windows, denoising and video output
+│   ├── pipeline.py                      # Model, conditioning and latent helpers
+│   ├── models/
+│   │   ├── wan_fantasy_transformer3d_1B.py  # Released audio-conditioned transformer
+│   │   ├── vocal_projector_fantasy_1B.py    # Audio feature conditioning
+│   │   ├── vocal_projector_fantasy.py    # Shared audio slicing/padding helpers
+│   │   ├── wan_transformer3d.py          # Wan backbone and shared attention
+│   │   ├── wan_image_encoder.py          # Reference-image features (CLIP)
+│   │   ├── wan_text_encoder.py           # Prompt features (T5)
+│   │   ├── wan_xlm_roberta.py            # Upstream CLIP text component
+│   │   ├── wan_vae.py                    # Image/video ↔ latent conversion
+│   │   ├── cache_utils.py                # Optional TeaCache acceleration
+│   │   └── __init__.py                   # Python package marker
+│   ├── dist/                            # Optional distributed/multi-GPU support
+│   │   ├── __init__.py                   # xFuser imports and distributed setup
+│   │   └── wan_xfuser.py                 # Distributed Wan attention helpers
+│   ├── utils/
+│   │   ├── utils.py                      # Video saving and reference preparation
+│   │   ├── fm_solvers.py                 # Retained alternative Flow DPM scheduler
+│   │   ├── fm_solvers_unipc.py           # Retained alternative Flow UniPC scheduler
+│   │   └── __init__.py                   # Solver helper exports
+│   └── __init__.py                       # Python package marker
+│
+├── stage2/                              # Five-view video → animated Gaussian head
+│   ├── inference.sh                     # Launch with Stage-2 environment settings
+│   ├── pipeline.py                      # Validate, reconstruct, render, attach audio
+│   ├── view_inputs.py                   # Split views, load cameras and checkpoint
+│   ├── rendering.py                     # Gaussian representation and rasterization
+│   ├── models/
+│   │   ├── gslrm.py                      # Five-view Gaussian reconstruction network
+│   │   ├── transform_data.py             # Camera rays and model input preparation
+│   │   ├── utils_transformer.py          # Attention, MLP and transformer blocks
+│   │   └── __init__.py                   # Python package marker
+│   ├── README.md                        # Stage-2 usage and upstream references
+│   ├── LICENSE                          # Upstream source license
+│   ├── Adobe Research License v1.2.txt   # Retained upstream component license
+│   └── __init__.py                       # Python package marker
+│
+├── scripts/
+│   ├── download_models.py               # Download and verify model assets
+│   ├── preprocess/
+│   │   └── preprocess_reference.py      # Matting, face framing and reference checks
+│   └── __init__.py                       # Python package marker
+├── data/
+│   └── README.md                        # Local portrait/audio input instructions
+├── docs/
+│   ├── installation.md                  # Environments, CUDA rasterizer, preprocessing
+│   └── checkpoints.md                   # Model sources, paths and checksums
+├── tests/                               # Software checks; not needed for inference
+│   ├── test_inference.py                # Two-stage orchestration checks
+│   ├── test_download_models.py          # Download, checksum and offline checks
+│   ├── stage1/
+│   │   ├── test_stage1_entrypoints.py    # Paths, checkpoint and portrait checks
+│   │   └── __init__.py                   # Test package marker
+│   ├── stage2/
+│   │   ├── test_stage2_infer.py          # Video/audio, camera and preflight checks
+│   │   └── __init__.py                   # Test package marker
+│   └── __init__.py                       # Test package marker
+│
+├── .gitignore                           # Exclude local inputs, weights and outputs
+├── README.md                            # Project overview and usage
+├── LICENSE.txt                          # Retained Stage-1 upstream MIT notice
+└── THIRD_PARTY_NOTICES.md                # Upstream sources and license references
 ```
 
 Each stage owns its model code under `models/` and its inference pipeline next
