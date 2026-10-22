@@ -1,12 +1,8 @@
 # Model checkpoints
 
 The two final models are hosted at
-[DanJZY/AudioLift](https://huggingface.co/DanJZY/AudioLift). This repository is
-currently **private for release review**. Log in with an account that has access:
-
-```bash
-hf auth login
-```
+[DanJZY/AudioLift](https://huggingface.co/DanJZY/AudioLift). The weights are
+**publicly downloadable**; no Hugging Face login or access request is required.
 
 The inference entrypoints download their missing default checkpoint automatically.
 Stage 1 also prepares its Wan and wav2vec2 assets. To prepare both stages before
@@ -34,8 +30,8 @@ the released assets separately.
 
 | Asset | Path | Availability |
 | --- | --- | --- |
-| AudioLift-mvdiffusion | `checkpoints/AudioLift-mvdiffusion.pt` | Hugging Face; private review |
-| AudioLift-gaussianlifter | `checkpoints/AudioLift-gaussianlifter.pt` | Hugging Face; private review |
+| AudioLift-mvdiffusion | `checkpoints/AudioLift-mvdiffusion.pt` | Hugging Face; public |
+| AudioLift-gaussianlifter | `checkpoints/AudioLift-gaussianlifter.pt` | Hugging Face; public |
 | Wan2.1 base assets | `checkpoints/Wan2.1-Fun-V1.1-1.3B-InP/` | Upstream StableAvatar |
 | Speech encoder | `checkpoints/wav2vec2-base-960h/` | Upstream StableAvatar |
 

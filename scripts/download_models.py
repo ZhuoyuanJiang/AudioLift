@@ -71,7 +71,7 @@ def ensure_checkpoint(stage, checkpoints_dir=ROOT / "checkpoints", *, allow_down
         except Exception as exc:
             raise RuntimeError(
                 f"Could not download {filename} from {MODEL_REPO} ({type(exc).__name__}). "
-                "Check connectivity; private model access requires hf auth login."
+                "Check connectivity and retry; released AudioLift models do not require a Hugging Face login."
             ) from exc
     digest = hashlib.sha256()
     with path.open("rb") as stream:

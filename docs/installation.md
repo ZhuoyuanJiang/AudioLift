@@ -85,9 +85,9 @@ the A100 name alone does not establish that it has enough memory.
 
 Use Python 3.10 environments and the pinned dependencies above, even if the
 notebook's default Python differs. The Stage-2 rasterizer needs the CUDA 12.4
-toolkit and the A100 architecture setting above. Model downloads currently
-require access to the private Hugging Face repository; see
-[checkpoint access](checkpoints.md).
+toolkit and the A100 architecture setting above. The released model weights
+are public and do not require a Hugging Face login; see
+[checkpoint downloads](checkpoints.md).
 
 ## Validation status
 

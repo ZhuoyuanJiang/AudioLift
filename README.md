@@ -7,8 +7,8 @@ Stage 1 generates five synchronized views; Stage 2 reconstructs and renders
 an animated head from those views.
 
 > This release provides inference code. Training code is not included.
-> Model downloads currently require an authorized Hugging Face login because
-> the model repository remains private.
+> The released model weights are public and can be downloaded without a
+> Hugging Face login.
 
 ## Installation
 
@@ -43,7 +43,7 @@ The inference entrypoints automatically download missing models from
 Weights are saved in `checkpoints/` and reused on subsequent runs. Stage 1 also
 downloads the required Wan and wav2vec2 assets from their upstream repository.
 To download everything ahead of time, run `python scripts/download_models.py`.
-See [model paths, private-review access and checksums](docs/checkpoints.md).
+See [model paths, downloads and checksums](docs/checkpoints.md).
 
 ## Inference
 
