@@ -6,7 +6,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-FINAL_STAGE1_SHA256="8b871f1344d0edcc06f59b501e02146ed52080544e5992ce32be36d392738e6a"
 FINAL_STAGE1_RELATIVE_PATH="checkpoints/AudioLift-mvdiffusion.pt"
 
 usage() {
@@ -41,9 +40,6 @@ Options:
   --allow_noncompliant_reference
                      Deliberately run the original rejected image. A/B tests
                      only; output may be invalid.
-  --allow_noncanonical_checkpoint
-                     Permit a checkpoint whose SHA-256 differs from the frozen
-                     release. A/B tests only; the mismatch is printed loudly.
   -h, --help         Show this help.
 
 Reference refusal:
@@ -58,8 +54,6 @@ Environment overrides:
   STAGE1_ASSET_ROOT            Root containing checkpoints/, configs/
                                (default: this repository).
   STAGE1_PYTHON or PY          Python interpreter.
-  ALLOW_NONCANONICAL_STAGE1_CKPT=1
-                               Same as --allow_noncanonical_checkpoint.
 
 Frozen release checkpoint:
   checkpoints/AudioLift-mvdiffusion.pt
@@ -81,7 +75,6 @@ SEED="42"
 CKPT="${CKPT:-}"
 DRY_RUN=0
 NO_DOWNLOAD=0
-ALLOW_NONCANONICAL="${ALLOW_NONCANONICAL_STAGE1_CKPT:-0}"
 EXTRA_ARGS=()
 
 while [[ $# -gt 0 ]]; do
@@ -97,7 +90,6 @@ while [[ $# -gt 0 ]]; do
     --no-download) NO_DOWNLOAD=1; shift ;;
     --skip_reference_check) EXTRA_ARGS+=(--skip_reference_check); shift ;;
     --allow_noncompliant_reference) EXTRA_ARGS+=(--allow_noncompliant_reference); shift ;;
-    --allow_noncanonical_checkpoint) ALLOW_NONCANONICAL=1; shift ;;
     --no_side_by_side_preview) EXTRA_ARGS+=(--no_side_by_side_preview); shift ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown argument: $1 (use --help)" ;;
@@ -125,22 +117,6 @@ fi
 
 [[ -n "$CKPT" && -f "$CKPT" ]] || die "final Stage-1 checkpoint not found.
 Pass --checkpoint PATH (or CKPT=PATH). Expected ${FINAL_STAGE1_RELATIVE_PATH}."
-command -v sha256sum >/dev/null 2>&1 || die "sha256sum is required to verify the checkpoint"
-
-actual_sha256="$(sha256sum "$CKPT" | awk '{print $1}')"
-if [[ "$actual_sha256" != "$FINAL_STAGE1_SHA256" ]]; then
-  if [[ "$ALLOW_NONCANONICAL" == "1" ]]; then
-    echo "[stage1-5view] WARNING: non-canonical checkpoint explicitly allowed" >&2
-    echo "[stage1-5view] expected SHA-256: $FINAL_STAGE1_SHA256" >&2
-    echo "[stage1-5view] actual   SHA-256: $actual_sha256" >&2
-  else
-    die "checkpoint SHA-256 mismatch.
-Expected: ${FINAL_STAGE1_SHA256}
-Actual:   ${actual_sha256}
-Path:     ${CKPT}
-Use --allow_noncanonical_checkpoint only for an intentional A/B test."
-  fi
-fi
 
 # Resolve caller-relative paths before running from the repository root.
 REFERENCE="$(realpath -- "$REFERENCE")"
@@ -175,12 +151,11 @@ echo "[stage1-5view] assets     : $ASSET_ROOT"
 echo "[stage1-5view] reference  : $REFERENCE"
 echo "[stage1-5view] audio      : $AUDIO"
 echo "[stage1-5view] checkpoint : $CKPT"
-echo "[stage1-5view] ckpt sha256: $actual_sha256"
 echo "[stage1-5view] output     : $OUT"
 echo "[stage1-5view] sampling   : gpu=$GPU steps=$STEPS seed=$SEED"
 
 CMD=(
-  "$PYTHON_BIN" "$REPO_ROOT/stage1/sampling.py"
+  "$PYTHON_BIN" "$REPO_ROOT/stage1/pipeline.py"
   --config_path "$CONFIG_PATH"
   --pretrained_model_name_or_path "$PRETRAINED_MODEL"
   --transformer_path "$CKPT"

@@ -12,8 +12,9 @@ an animated head from those views.
 
 ## Installation
 
-Use Linux, Python 3.10, an NVIDIA GPU and FFmpeg. The two stages have separate
-Python environments within this repository:
+Use Linux, Python 3.10, FFmpeg and an NVIDIA GPU with at least 48 GB VRAM for
+the default settings. Both stages run sequentially on the same GPU, using
+separate Python environments within this repository:
 
 ```bash
 python3.10 -m venv .venv-stage1
@@ -60,9 +61,10 @@ The launcher uses `.venv-stage1/bin/python` and `.venv-stage2/bin/python`
 automatically. You do not need to activate or switch environments between stages.
 It runs the existing Stage-1 entrypoint, waits for it to finish, then passes
 `grid.mp4`, `front.mp4` and the same audio to the existing Stage-2 entrypoint.
-The model, sampling and rendering implementations are unchanged.
+Stage 1 uses the sampler from the evaluated generation workflow. Stage 2 uses
+the same five-view preparation, cameras and renderer as the evaluated outputs.
 
-Use a **new output directory** for each run. The main outputs are:
+The main outputs are:
 
 ```text
 outputs/example/
@@ -80,8 +82,11 @@ The reference should be a white-background 832×1216 portrait with the expected
 face framing. If Stage 1 proposes a preprocessed replacement, inference stops
 with exit code 3 before loading the generation models. Inspect the image under
 `outputs/example/stage1/_gate_candidate/`. If it is acceptable, rerun with that
-image as `--reference` and a new `--out` directory. The launcher never accepts a
-replacement for you. Output duration follows the audio.
+image as `--reference`. The launcher never accepts a replacement for you.
+For already prepared and audited references, `--skip_reference_check` uses the
+same bypass as the paper batches. Output length follows the original Stage-1
+frame plan; Stage 2 renders every generated frame and retains the full audio,
+including when the audio is slightly longer than the video.
 
 For Conda or environments installed elsewhere, specify their Python executables:
 
@@ -120,13 +125,14 @@ python inference_stage2.py \
   --out outputs/example/stage2
 ```
 
-Use synchronized 25 fps inputs, matching audio starting at time zero, and a
-new Stage-2 output directory. Add `--dry-run` to check Stage-2 inputs and assets
-before using a GPU. Dry runs require local weights and do not download them.
+Pass the Stage-1 videos and their original driving audio. Existing output
+directories are accepted; Stage 2 keeps its results if all three videos already
+exist, as in the paper renderer. Add `--dry-run` to print Stage-2 input metadata
+and model paths without using a GPU. Dry runs use local weights and do not download them.
 
 If Stage 2 fails during a combined run, the Stage-1 videos remain available.
-Retry with `inference_stage2.py`, the same audio, and a new output directory
-such as `outputs/example/stage2-retry`; there is no need to regenerate Stage 1.
+Retry with `inference_stage2.py`, the same audio, and
+`--out outputs/example/stage2`; there is no need to regenerate Stage 1.
 
 </details>
 
@@ -156,7 +162,10 @@ docs/                           Installation and checkpoint details
 ```
 
 Each stage owns its model code under `models/` and its inference pipeline next
-to it. `configs/` holds configuration values: model settings, expected portrait
+to it. `stage1/pipeline.py` runs five-view video generation and uses
+`stage1/wan_pipeline.py` for the Wan model wrapper and shared conditioning
+helpers. `stage2/pipeline.py` runs Gaussian reconstruction and rendering.
+`configs/` holds configuration values: model settings, expected portrait
 framing and camera parameters. The trained weights live in `checkpoints/`.
 `stage1/dist/` means **distributed computation**, specifically optional multi-GPU
 support; the default single-GPU command does not require xFuser.
@@ -189,8 +198,8 @@ AudioLift/
 │
 ├── stage1/                              # Portrait + audio → five-view video
 │   ├── inference.sh                     # Check inputs/assets and launch sampling
-│   ├── sampling.py                      # Audio windows, denoising and video output
-│   ├── pipeline.py                      # Model, conditioning and latent helpers
+│   ├── pipeline.py                      # Audio windows, denoising and video output
+│   ├── wan_pipeline.py                  # Wan model, conditioning and latent helpers
 │   ├── models/
 │   │   ├── wan_fantasy_transformer3d_1B.py  # Released audio-conditioned transformer
 │   │   ├── vocal_projector_fantasy_1B.py    # Audio feature conditioning
@@ -258,7 +267,7 @@ The main execution path is:
 
 ```text
 inference.py
-  → inference_stage1.py → stage1/inference.sh → stage1/sampling.py
+  → inference_stage1.py → stage1/inference.sh → stage1/pipeline.py
       → grid.mp4 + front.mp4
   → inference_stage2.py → stage2/inference.sh → stage2/pipeline.py
       → frontal.mp4 + coverage.mp4 + orbit360.mp4

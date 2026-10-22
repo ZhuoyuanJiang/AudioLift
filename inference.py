@@ -54,7 +54,7 @@ def main(argv=None):
     )
     parser.add_argument("--reference", required=True, type=Path, help="reference portrait")
     parser.add_argument("--audio", required=True, type=Path, help="driving speech recording")
-    parser.add_argument("--out", required=True, type=Path, help="new output directory (must not exist)")
+    parser.add_argument("--out", required=True, type=Path, help="output directory")
     for stage in (1, 2):
         parser.add_argument(
             f"--stage{stage}-python",
@@ -65,13 +65,15 @@ def main(argv=None):
                         help="GPU index within CUDA_VISIBLE_DEVICES if set, otherwise CUDA device index (default: 0)")
     parser.add_argument("--steps", type=int, default=30, help="Stage-1 denoising steps (default: 30)")
     parser.add_argument("--seed", type=int, default=42, help="Stage-1 sampling seed (default: 42)")
-    parser.add_argument("--turns", type=int, choices=(1, 2, 3), help="Stage-2 orbit turns (default: based on audio duration)")
+    parser.add_argument("--turns", type=float, help="Stage-2 orbit turns (default: based on audio duration)")
+    parser.add_argument("--skip_reference_check", action="store_true",
+                        help="use an already prepared and audited reference, as in the paper batches")
+    parser.add_argument("--allow_noncompliant_reference", action="store_true",
+                        help="pass the original Stage-1 reference-gate override")
     parser.add_argument("--no-download", action="store_true", help="require local checkpoints and base-model assets")
     args = parser.parse_args(argv)
 
     try:
-        if args.steps <= 0:
-            raise ValueError("--steps must be positive")
         for name in ("reference", "audio", "stage1_checkpoint", "stage2_checkpoint"):
             path = getattr(args, name)
             if path is not None:
@@ -80,15 +82,16 @@ def main(argv=None):
                     raise ValueError(f"--{name.replace('_', '-')} file not found: {path}")
                 setattr(args, name, path)
         args.out = args.out.expanduser().absolute()
-        if os.path.lexists(args.out):
-            raise ValueError(f"Output already exists: {args.out}. Choose a new --out directory.")
+        stage1_dir = args.out / "stage1"
+        stage2_dir = args.out / "stage2"
+        if all((stage2_dir / name).is_file() for name in ("frontal.mp4", "coverage.mp4", "orbit360.mp4")):
+            print(f"[AudioLift] EXISTS {stage2_dir}")
+            return 0
         stage1_python = python_for_stage(1, args.stage1_python)
         stage2_python = python_for_stage(2, args.stage2_python)
         device = cuda_device(args.gpu)
         env = dict(os.environ, STAGE1_PYTHON=stage1_python, STAGE2_PYTHON=stage2_python,
                    CUDA_VISIBLE_DEVICES=device)
-        stage1_dir = args.out / "stage1"
-        stage2_dir = args.out / "stage2"
         stage1 = [stage1_python, str(ROOT / "inference_stage1.py"),
                   "--reference", str(args.reference), "--audio", str(args.audio),
                   "--out", str(stage1_dir), "--gpu", device,
@@ -105,6 +108,9 @@ def main(argv=None):
                 command.append("--no-download")
         if args.turns is not None:
             stage2.extend(["--turns", str(args.turns)])
+        for flag in ("skip_reference_check", "allow_noncompliant_reference"):
+            if getattr(args, flag):
+                stage1.append(f"--{flag}")
 
         code = run_stage(1, stage1, env)
         if code:
@@ -112,7 +118,7 @@ def main(argv=None):
             if code == 3:
                 print(
                     f"Inspect the proposed portrait in {stage1_dir / '_gate_candidate'}. "
-                    "If acceptable, rerun with that image as --reference and a new --out directory.",
+                    "If acceptable, rerun with that image as --reference.",
                     file=sys.stderr,
                 )
             return code
@@ -125,7 +131,7 @@ def main(argv=None):
         if code:
             print(
                 f"[AudioLift] Stage 2 stopped (exit {code}). Stage-1 videos remain in {stage1_dir}. "
-                "Use inference_stage2.py to retry with a new Stage-2 output directory.",
+                "Use inference_stage2.py to retry Stage 2.",
                 file=sys.stderr,
             )
             return code

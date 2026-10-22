@@ -41,7 +41,7 @@ out = Path(value("--out"))
 if stage == "2":
     previous = Path(value("--stage1-dir"))
     assert all((previous / name).is_file() for name in ("grid.mp4", "front.mp4"))
-out.mkdir(parents=True)
+out.mkdir(parents=True, exist_ok=True)
 names = ("grid.mp4", "front.mp4") if stage == "1" else ("frontal.mp4", "coverage.mp4", "orbit360.mp4")
 for name in names:
     if name != os.environ.get("INFERENCE_TEST_OMIT"):
@@ -76,8 +76,9 @@ for name in names:
     def test_two_environments_handoff_paths_options_and_visible_gpu(self):
         self.env["CUDA_VISIBLE_DEVICES"] = "5,2"
         result = self.run_inference("--gpu", "1", "--steps", "24", "--seed", "123",
-                                    "--turns", "1", "--stage1-checkpoint", "stage1.pt",
-                                    "--stage2-checkpoint", "stage2.pt", "--no-download")
+                                    "--turns", "1.5", "--stage1-checkpoint", "stage1.pt",
+                                    "--stage2-checkpoint", "stage2.pt", "--no-download",
+                                    "--skip_reference_check")
         self.assertEqual(result.returncode, 0, result.stderr)
         calls = self.calls()
         self.assertEqual([call["stage"] for call in calls], ["1", "2"])
@@ -92,7 +93,9 @@ for name in names:
             self.assertIn("--no-download", args)
         for flag, expected in (("--steps", "24"), ("--seed", "123")):
             self.assertEqual(calls[0]["args"][calls[0]["args"].index(flag) + 1], expected)
-        self.assertEqual(calls[1]["args"][calls[1]["args"].index("--turns") + 1], "1")
+        self.assertEqual(calls[1]["args"][calls[1]["args"].index("--turns") + 1], "1.5")
+        self.assertIn("--skip_reference_check", calls[0]["args"])
+        self.assertNotIn("--skip_reference_check", calls[1]["args"])
         self.assertEqual(calls[1]["args"][calls[1]["args"].index("--stage1-dir") + 1],
                          str(self.root / "result with spaces/stage1"))
         self.assertTrue((self.root / "result with spaces/stage2/orbit360.mp4").is_file())
@@ -134,18 +137,23 @@ for name in names:
         result = self.run_inference("--stage2-python", self.pythons[1].name)
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_existing_output_is_not_overwritten(self):
+    def test_existing_directory_is_accepted_and_unrelated_files_are_preserved(self):
         out = self.root / "result with spaces"
         out.mkdir()
         (out / "keep.txt").write_text("keep")
         result = self.run_inference()
-        self.assertEqual(result.returncode, 1)
-        self.assertEqual(self.calls(), [])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual([call["stage"] for call in self.calls()], ["1", "2"])
         self.assertEqual((out / "keep.txt").read_text(), "keep")
+
+    def test_complete_results_do_not_regenerate_only_stage1(self):
+        self.assertEqual(self.run_inference().returncode, 0)
+        self.assertEqual(self.run_inference().returncode, 0)
+        self.assertEqual([call["stage"] for call in self.calls()], ["1", "2"])
 
     def test_invalid_input_checkpoint_or_gpu_fails_before_launch(self):
         for extra in (("--reference", "missing.png"), ("--stage2-checkpoint", "missing.pt"),
-                      ("--gpu", "-1"), ("--steps", "0")):
+                      ("--gpu", "-1")):
             with self.subTest(extra=extra):
                 self.assertEqual(self.run_inference(*extra).returncode, 1)
                 self.assertEqual(self.calls(), [])

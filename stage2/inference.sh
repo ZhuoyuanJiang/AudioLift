@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Unfiltered full-resolution orbits have large, varying rasterizer buffers.
-# Match the training launchers' allocator setting; retain caller overrides.
+# These runtime settings leave the model and rendering calculations unchanged.
 export PYTORCH_CUDA_ALLOC_CONF=${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}
 export OMP_NUM_THREADS=${OMP_NUM_THREADS:-4}
 

@@ -2,6 +2,8 @@
 
 Run commands from the repository root on Linux with Python 3.10, an NVIDIA
 GPU and FFmpeg/ffprobe. Each stage uses its own Python environment.
+Use a GPU with at least 48 GB VRAM for the default five-view settings.
+The unified launcher runs both stages sequentially on that one GPU.
 
 ## Stage 1
 
@@ -41,7 +43,8 @@ TORCH_CUDA_ARCH_LIST="8.6;8.9" python -m pip install \
 python -m pip check
 ```
 
-The example architecture list covers RTX 3090 and RTX 6000 Ada. Set it for
+The example architecture list covers RTX 3090 and RTX 6000 Ada. For an A100,
+use `TORCH_CUDA_ARCH_LIST="8.0"` in the build command instead. Set this list for
 the GPU you will use. A Conda CUDA toolkit may also need:
 
 ```bash
@@ -59,3 +62,33 @@ stages in sequence. For environments elsewhere, pass `--stage1-python` and
 executables. See the [inference command](../README.md#inference). The individual
 `inference_stage1.py` and `inference_stage2.py` entrypoints still require the
 appropriate active environment or Python override.
+
+## Checking a Colab GPU
+
+In a GPU notebook, first check the assigned device and its memory:
+
+```python
+!nvidia-smi --query-gpu=name,memory.total,memory.free --format=csv
+```
+
+[A100 GPUs have 40 GB and 80 GB variants](https://images.nvidia.com/data-center/a100/a100-datasheet.pdf),
+and [Colab hardware availability varies](https://research.google.com/colaboratory/faq.html#resource-limits).
+The default Stage-1 run reached about 44.2 GiB on an RTX 6000 Ada before an
+external interruption. A 40 GB device has not been validated for this workflow;
+the A100 name alone does not establish that it has enough memory.
+
+Use Python 3.10 environments and the pinned dependencies above, even if the
+notebook's default Python differs. The Stage-2 rasterizer needs the CUDA 12.4
+toolkit and the A100 architecture setting above. Model downloads currently
+require access to the private Hugging Face repository; see
+[checkpoint access](checkpoints.md).
+
+## Validation status
+
+Both pinned environments were installed from scratch. Stage 2 completed all
+81 frames and all three output videos on one RTX 3090, using saved inputs from
+the evaluated Stage-1 workflow; the full audio was preserved. Gaussian outputs
+and rendered images matched the original implementation exactly at three
+checked frames on the same GPU. The complete unified Stage-1-to-Stage-2 run is
+still pending: its Stage-1 process received SIGTERM after 7 of 30 denoising steps.
+This release has not yet completed an A100 or Colab run.

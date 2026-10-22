@@ -19,14 +19,18 @@ python scripts/download_models.py
 Use `--stage 1` or `--stage 2` to download only one stage. All paths default to
 this checkout's `checkpoints/` directory, even when invoked from another directory.
 Use `--checkpoints-dir /path/to/checkpoints` with the download script when preparing
-assets elsewhere. Existing final weights are verified by SHA-256 and are never
-silently replaced. Wan and wav2vec2 downloads use a pinned upstream revision and
-check that all required files have their expected sizes.
+assets elsewhere. The download script verifies final weights by SHA-256 and
+never silently replaces them. Wan and wav2vec2 downloads use a pinned upstream
+revision and check that every required file has its expected size. The Stage-1
+launcher also checks these upstream assets, so an interrupted download can be
+completed on the next run.
 
 For offline use, download the assets beforehand and pass `--no-download` to an
 inference entrypoint, or set `HF_HUB_OFFLINE=1`. Dry runs also disable downloads.
-An explicit `--checkpoint PATH` always uses that local file; a missing or incorrect
-explicit checkpoint is an error, without falling back to another model.
+An explicit `--checkpoint PATH` uses that local file with the original model
+loader. Inference does not impose a release-hash whitelist on local checkpoints
+or configuration files. Run the download script with `--check-only` to verify
+the released assets separately.
 
 | Asset | Path | Availability |
 | --- | --- | --- |
@@ -41,7 +45,7 @@ tokenizers, VAE, CLIP and T5 files. Upstream checkpoints do not replace AudioLif
 two final checkpoints. No training initialization or teacher model is needed
 for inference.
 
-The entrypoints verify the final weights by SHA-256:
+The download script verifies the released weights against these SHA-256 values:
 
 | Checkpoint | SHA-256 |
 | --- | --- |
