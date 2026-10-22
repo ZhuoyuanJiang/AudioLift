@@ -111,6 +111,13 @@ for name in names:
                 if code == 3:
                     self.assertIn("_gate_candidate", result.stderr)
 
+    def test_strict_reference_option_only_reaches_stage1(self):
+        result = self.run_inference("--strict-reference")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        first, second = self.calls()
+        self.assertIn("--strict-reference", first["args"])
+        self.assertNotIn("--strict-reference", second["args"])
+
     def test_missing_stage1_video_prevents_stage2(self):
         self.env["INFERENCE_TEST_OMIT"] = "front.mp4"
         result = self.run_inference()

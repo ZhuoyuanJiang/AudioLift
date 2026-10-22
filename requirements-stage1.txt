@@ -26,3 +26,6 @@ sentencepiece==0.2.1
 mediapipe==0.10.32
 beautifulsoup4==4.14.2
 protobuf==6.33.1
+rembg==2.0.69
+onnxruntime==1.23.2
+opencv-python-headless==4.11.0.86

@@ -345,63 +345,116 @@ def check_reference(image, width=832, height=1216):
 
 
 class ReferenceGateError(RuntimeError):
-    """The reference is not a training-distribution image and the job must not start.
+    """The reference needs strict review or cannot be read for inference."""
 
-    Raised by ensure_reference before any model is loaded, so a raw photo stops
-    the job in its first seconds instead of after hours of GPU time.
-    """
+
+def preprocess_fitpad(image, width=832, height=1216):
+    """Reuse the evaluated ITW fallback: rembg, or original pixels, then fitpad."""
+    details = {"method": "rembg_fitpad"}
+    try:
+        fg, alpha = matte_rembg(image)
+        coverage = float(alpha.mean())
+        details["alpha_mean"] = coverage
+        if coverage >= 0.08:
+            comp = composite_white(fg, alpha)
+        else:
+            comp = image
+            details.update(method="original_fitpad", reason="rembg retained less than 8% foreground")
+    except Exception as error:
+        comp = image
+        details.update(method="original_fitpad", reason=f"rembg failed: {type(error).__name__}: {error}")
+    return frame_fitpad(comp, width, height), details
 
 
 def ensure_reference(path, width=832, height=1216, cache_dir=None, auto=True, tag="reference",
-                     allow_noncompliant=False):
-    """Check the reference; return it untouched if compliant, otherwise stop.
+                     allow_noncompliant=False, strict=False, skip=False, cpu=False):
+    """Prepare a reference automatically and save the exact RGB image used.
 
-    The gate never swaps the image behind the caller's back. When the photo is
-    not in the training distribution (wrong aspect, or the top corners beside
-    the head are not white backdrop) it prints why, prepares a repaired
-    candidate next to the outputs (matting + face framing + resize, the same
-    thing `preprocess_reference.py --mode face` produces) so the user can look
-    at it, and raises ReferenceGateError. The candidate is only ever used if
-    the user passes it in explicitly. allow_noncompliant=True keeps the old
-    warn-and-continue behaviour for deliberate A/B tests.
+    Compliant images keep their pixels. Other images use the existing human
+    preprocessing, then the evaluated rembg/fitpad fallback if necessary.
+    Strict mode preserves the original candidate-review pause instead.
     """
     def say(msg):
         print("[%s] %s" % (tag, msg), flush=True)
 
+    path = os.path.abspath(os.fspath(path))
+    cache_dir = os.path.abspath(cache_dir or "_gate_candidate")
+    output_dir = os.path.dirname(cache_dir)
+    os.makedirs(output_dir, exist_ok=True)
+    record_path = os.path.join(output_dir, "reference_processing.json")
+    record = {"source": path, "mode": "strict" if strict else "auto", "attempts": []}
+
+    def save_record():
+        with open(record_path, "w") as handle:
+            json.dump(record, handle, indent=2, ensure_ascii=False)
+            handle.write("\n")
+
+    def use(image, method):
+        used_path = os.path.join(output_dir, "reference_used.png")
+        image.save(used_path, format="PNG")
+        record.update(status="ready", method=method, reference_used=used_path,
+                      output_size=list(image.size))
+        save_record()
+        say(f"Using {method}: {used_path}; processing record: {record_path}")
+        return used_path
+
     try:
-        ok, problems, stats = check_reference(path, width, height)
-    except Exception as e:                                   # unreadable / exotic format
-        problems, stats, ok = ["无法读取或检查图片（%s）" % e], {}, False
+        with Image.open(path) as source:
+            original = source.convert("RGB")
+    except (OSError, ValueError) as error:
+        record.update(status="error", error=f"Cannot read reference: {error}")
+        save_record()
+        raise ReferenceGateError(record["error"]) from error
 
+    if skip:
+        record["mode"] = "skip_check"
+        return use(original, "original")
+
+    ok, problems, stats = check_reference(original, width, height)
+    record["input_check"] = {"passed": ok, "problems": problems, "stats": stats}
     if ok:
-        say("输入合规（%dx%d，长宽比 %.3f，上角白底 %.0f%%/%.0f%%），原样使用"
-            % (stats["size"][0], stats["size"][1], stats["aspect"], *stats["top_corner_white_pct"]))
-        return path
-
-    say("!! 输入不在训练分布：" + str(path))
-    for pr in problems:
-        say("!!   - " + pr)
-
-    candidate = None
-    if auto and stats:
-        out_dir = cache_dir or os.path.join(os.path.dirname(os.path.abspath(path)) or ".",
-                                            "_gate_candidate")
-        try:
-            candidate = preprocess_one(path, out_dir, width=width, height=height)
-        except Exception as e:
-            say("!! 重构候选生成失败（%s）" % e)
-        if candidate:
-            say("已生成重构候选（抠像 + 人脸构图 + %dx%d），未使用：%s" % (width, height, candidate))
-            say("   先看这张图（尤其帽子/头发边缘有没有被抠掉），满意再用它重跑")
-        else:
-            say("!! 没有检测到人脸，无法生成候选")
+        return use(original, "original")
 
     if allow_noncompliant:
-        say("!! --allow_noncompliant_reference：原图原样使用 —— 输出很可能不对")
-        return path
-    say("!! 停止：不载模型。可选：① 用上面的候选图重跑；② 自己预处理后重跑；"
-        "③ 确认图本来就是白底竖版，加 --allow_noncompliant_reference 原图跑")
-    raise ReferenceGateError("; ".join(problems))
+        record["mode"] = "allow_noncompliant"
+        say("WARNING: explicitly using the original image despite its reference-check results")
+        return use(original, "original")
+
+    for pr in problems:
+        say("Preprocessing needed: " + pr)
+
+    candidate = candidate_image = None
+    if auto:
+        attempt = {"method": "rvm_face"}
+        try:
+            candidate = preprocess_one(path, cache_dir, width=width, height=height, cpu=cpu)
+            if candidate:
+                with Image.open(candidate) as prepared:
+                    candidate_image = prepared.convert("RGB")
+            attempt["status"] = "prepared" if candidate else "no_face"
+        except (Exception, SystemExit) as error:
+            candidate = None
+            attempt.update(status="failed", error=f"{type(error).__name__}: {error}")
+        record["attempts"].append(attempt)
+
+    if strict or not auto:
+        record.update(status="review_required", candidate=candidate)
+        save_record()
+        if candidate:
+            say(f"Strict review: inspect {candidate}, then pass it explicitly as --reference")
+        else:
+            say("Strict review: no face-framed candidate was produced; see the processing record")
+        raise ReferenceGateError("; ".join(problems))
+
+    if candidate:
+        return use(candidate_image, "rvm_face")
+
+    say("Human preprocessing did not produce a reference; trying rembg and fitpad on the original image")
+    prepared, details = preprocess_fitpad(original, width, height)
+    record["attempts"].append(details)
+    if details["method"] == "original_fitpad":
+        say("WARNING: keeping the original background and fitting the full image: " + details["reason"])
+    return use(prepared, details["method"])
 
 
 def preprocess_one(path, output_dir, width=832, height=1216, matting="rvm", cpu=False):
@@ -416,8 +469,11 @@ def preprocess_one(path, output_dir, width=832, height=1216, matting="rvm", cpu=
     )
     process_images(args)
     stem = os.path.splitext(os.path.basename(path))[0]
-    out = os.path.join(output_dir, "%s_face.png" % stem)
-    return out if os.path.exists(out) else None
+    # A previous run may have left a face PNG in this directory. Only accept an
+    # output recorded by the current call, which also writes metadata on no-face.
+    with open(os.path.join(output_dir, "%s_meta.json" % stem)) as handle:
+        out = json.load(handle).get("output_face")
+    return out if out and os.path.isfile(out) else None
 
 
 def main():

@@ -70,7 +70,9 @@ The main outputs are:
 outputs/example/
 ├── stage1/
 │   ├── grid.mp4       Four synchronized views in a 2×2 grid
-│   └── front.mp4      Separate frontal view
+│   ├── front.mp4      Separate frontal view
+│   ├── reference_used.png          Actual reference supplied to Stage 1
+│   └── reference_processing.json   Input checks, processing and fallbacks
 └── stage2/
     ├── frontal.mp4   Frontal rendering with audio
     ├── coverage.mp4  Camera sweep with audio
@@ -78,15 +80,30 @@ outputs/example/
     └── run.json      Input, checkpoint and rendering details
 ```
 
-The reference should be a white-background 832×1216 portrait with the expected
-face framing. If Stage 1 proposes a preprocessed replacement, inference stops
-with exit code 3 before loading the generation models. Inspect the image under
-`outputs/example/stage1/_gate_candidate/`. If it is acceptable, rerun with that
-image as `--reference`. The launcher never accepts a replacement for you.
-For already prepared and audited references, `--skip_reference_check` uses the
-same bypass as the paper batches. Output length follows the original Stage-1
-frame plan; Stage 2 renders every generated frame and retains the full audio,
-including when the audio is slightly longer than the video.
+Reference preparation is automatic. Images that pass the existing portrait-aspect
+and white-background checks keep their original pixels. Other images use the
+existing matting and calibrated face-framing code. If that cannot produce a face
+reference, the original image goes through rembg and whole-image fitpad: scaling
+with preserved proportions and white padding. If rembg fails or retains less than
+8% foreground, the original pixels, including their background, are fitted instead.
+The fallback is logged and inference continues; it does not guarantee the same
+quality as a well-prepared portrait.
+
+Before generation, the selected reference is saved as `stage1/reference_used.png`.
+`stage1/reference_processing.json` records the source path, input checks,
+processing and any fallbacks. The source file is left untouched; a separate copy
+of the original file is not made. Inspect these outputs when the generated
+appearance is unexpected. For manual review, add `--strict-reference`: an image
+that needs preprocessing produces a face-framed
+candidate when possible, then stops with exit code 3 before generation. Inspect
+`stage1/_gate_candidate/` and pass the accepted candidate as `--reference` to rerun.
+The standalone `scripts/preprocess/preprocess_reference.py` remains available
+for debugging matting and framing. Existing `--skip_reference_check` and
+`--allow_noncompliant_reference` overrides still preserve the original input pixels.
+
+Output length follows the original Stage-1 frame plan; Stage 2 renders every
+generated frame and retains the full audio, including when the audio is slightly
+longer than the video.
 
 For Conda or environments installed elsewhere, specify their Python executables:
 
@@ -101,7 +118,7 @@ python inference.py \
 `STAGE1_PYTHON` and `STAGE2_PYTHON` are also supported; explicit command-line
 options take precedence. `--gpu 0` selects the first visible GPU for both stages
 (within `CUDA_VISIBLE_DEVICES` when set). Optional controls include `--steps`,
-`--seed`, `--turns`, `--stage1-checkpoint`, `--stage2-checkpoint` and
+`--seed`, `--turns`, `--strict-reference`, `--stage1-checkpoint`, `--stage2-checkpoint` and
 `--no-download`. Run `python inference.py --help` for details.
 
 <details>

@@ -40,10 +40,10 @@ class Stage1Entrypoints(unittest.TestCase):
 
 
 
-    def infer(self):
+    def infer(self, *extra):
         args = [sys.executable, str(ROOT / "inference_stage1.py"),
                 "--reference", "prepared clip/reference_image.jpg", "--audio", "prepared clip/audio.wav",
-                "--checkpoint", "input.pt", "--out", "inference output", "--dry_run"]
+                "--checkpoint", "input.pt", "--out", "inference output", "--dry_run", *extra]
         return subprocess.run(args, cwd=self.root, env=self.env, capture_output=True, text=True)
 
     def test_inference_passes_explicit_checkpoint_to_the_original_loader(self):
@@ -63,6 +63,11 @@ class Stage1Entrypoints(unittest.TestCase):
     def test_reference_refusal_exit_status_is_preserved(self):
         self.env["CAPTURE_EXIT"] = "3"
         self.assertEqual(self.infer().returncode, 3)
+
+    def test_strict_review_reaches_stage1_pipeline(self):
+        result = self.infer("--strict-reference")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("--strict-reference", json.loads(self.capture.read_text()))
 
 
 if __name__ == "__main__":

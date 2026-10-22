@@ -17,9 +17,8 @@ Usage:
     --reference photo.jpg --audio speech.wav --out OUTPUT_DIR [options]
 
 Required:
-  --reference PATH   Reference portrait. The default gate requires the Stage-1
-                     training distribution: 832x1216 portrait framing with the
-                     person matted over white.
+  --reference PATH   Reference image. Prepared portraits are used directly;
+                     other images are preprocessed automatically.
   --audio PATH       Driving speech. Output length follows the audio.
   --out DIR          Output directory.
 
@@ -35,6 +34,8 @@ Options:
                      Write only grid.mp4 and front.mp4.
   --dry_run          Run the reference gate, print the complete window plan and
                      cost estimate, then stop before loading Stage-1 models.
+  --strict-reference
+                     Stop for manual review if the image needs preprocessing.
   --skip_reference_check
                      Bypass the gate for an already audited frozen dataset.
   --allow_noncompliant_reference
@@ -42,12 +43,17 @@ Options:
                      only; output may be invalid.
   -h, --help         Show this help.
 
-Reference refusal:
-  A rejected image is never replaced silently. The gate writes
+Reference preprocessing:
+  The default flow prepares an image when needed and continues automatically.
+  It saves OUTPUT_DIR/reference_used.png and reference_processing.json.
+  Human preprocessing uses matting and calibrated face framing. When that
+  fails, rembg and whole-image fitpad are used; if matting fails, the original
+  pixels are fitted with white padding and the fallback is recorded.
+
+  With --strict-reference, a non-compliant image instead produces
     OUTPUT_DIR/_gate_candidate/<reference_stem>_face.png
-  when repair succeeds, prints the path, and exits 3 before model loading. Open
-  that candidate, inspect hair/headwear/framing/shoulders, and pass it explicitly
-  as --reference in a new command if it is acceptable.
+  when face preprocessing succeeds, then exits 3 before generation. Inspect
+  the candidate and pass it explicitly as --reference to continue.
 
 Environment overrides:
   CKPT                         Same as --checkpoint.
@@ -87,6 +93,7 @@ while [[ $# -gt 0 ]]; do
     --steps) [[ $# -ge 2 ]] || die "$1 requires a value"; STEPS="$2"; shift 2 ;;
     --seed) [[ $# -ge 2 ]] || die "$1 requires a value"; SEED="$2"; shift 2 ;;
     --dry_run) DRY_RUN=1; EXTRA_ARGS+=(--dry_run); shift ;;
+    --strict-reference) EXTRA_ARGS+=(--strict-reference); shift ;;
     --no-download) NO_DOWNLOAD=1; shift ;;
     --skip_reference_check) EXTRA_ARGS+=(--skip_reference_check); shift ;;
     --allow_noncompliant_reference) EXTRA_ARGS+=(--allow_noncompliant_reference); shift ;;

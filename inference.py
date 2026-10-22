@@ -66,6 +66,8 @@ def main(argv=None):
     parser.add_argument("--steps", type=int, default=30, help="Stage-1 denoising steps (default: 30)")
     parser.add_argument("--seed", type=int, default=42, help="Stage-1 sampling seed (default: 42)")
     parser.add_argument("--turns", type=float, help="Stage-2 orbit turns (default: based on audio duration)")
+    parser.add_argument("--strict-reference", action="store_true",
+                        help="pause for manual review when the reference needs preprocessing")
     parser.add_argument("--skip_reference_check", action="store_true",
                         help="use an already prepared and audited reference, as in the paper batches")
     parser.add_argument("--allow_noncompliant_reference", action="store_true",
@@ -111,14 +113,17 @@ def main(argv=None):
         for flag in ("skip_reference_check", "allow_noncompliant_reference"):
             if getattr(args, flag):
                 stage1.append(f"--{flag}")
+        if args.strict_reference:
+            stage1.append("--strict-reference")
 
         code = run_stage(1, stage1, env)
         if code:
             print(f"[AudioLift] Stage 1 stopped (exit {code}); Stage 2 was not started.", file=sys.stderr)
             if code == 3:
                 print(
-                    f"Inspect the proposed portrait in {stage1_dir / '_gate_candidate'}. "
-                    "If acceptable, rerun with that image as --reference.",
+                    f"See {stage1_dir / 'reference_processing.json'} for the reason. "
+                    f"If a candidate exists in {stage1_dir / '_gate_candidate'}, inspect it "
+                    "and rerun with that image as --reference.",
                     file=sys.stderr,
                 )
             return code

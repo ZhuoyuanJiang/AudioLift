@@ -24,6 +24,12 @@ Face Landmarker bundle linked from the
 to `external/mediapipe_models/face_landmarker.task`. The RVM matting model is
 loaded and cached by PyTorch Hub on first use from
 [RobustVideoMatting](https://github.com/PeterL1n/RobustVideoMatting).
+When human preprocessing cannot produce a reference, the existing rembg/U2Net
+fallback handles whole-image matting and fitpad. Its CPU runtime is included in
+`requirements-stage1.txt`; rembg downloads its U2Net weights on first use.
+An unsuccessful matting attempt falls back to fitting the original image and is
+recorded in `stage1/reference_processing.json`. Use `--strict-reference` to keep
+the manual candidate-review pause.
 
 ## Stage 2
 
@@ -92,3 +98,9 @@ and rendered images matched the original implementation exactly at three
 checked frames on the same GPU. The complete unified Stage-1-to-Stage-2 run is
 still pending: its Stage-1 process received SIGTERM after 7 of 30 denoising steps.
 This release has not yet completed an A100 or Colab run.
+
+Automatic reference preparation passed 39 CPU regression checks. Real CPU
+preprocessing of raw human, cat and stylized images produced references that
+matched the corresponding saved evaluation references pixel for pixel. The
+complete GPU run through automatic preprocessing, Stage 1 and Stage 2 remains
+unverified; the CPU checks do not establish that it completes on a new machine.

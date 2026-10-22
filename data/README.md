@@ -9,9 +9,17 @@ data/
     speech.wav
 ```
 
-The portrait should have a white background and the expected 832×1216 framing.
-Stage 1 checks its framing before generation. If it proposes a replacement,
-inspect the image and pass the accepted image explicitly as `--reference`.
+Pass your image directly as `--reference`. Stage 1 checks its aspect ratio and
+white background, uses prepared references directly, and preprocesses other
+images automatically before continuing. If face framing fails, it uses
+whole-image matting and fitpad; if matting also fails, it fits the original image
+with white padding. Inspect `stage1/reference_used.png` and
+`stage1/reference_processing.json` to see the image and processing actually used.
+The source image is left untouched.
+
+For manual review, add `--strict-reference`. An image that needs preprocessing
+then stops before generation. Inspect the candidate, if one was produced, and
+pass the accepted image explicitly as `--reference` to rerun.
 See the [installation guide](../docs/installation.md) for preprocessing assets.
 
 Stage 1 generates `grid.mp4` and `front.mp4`. The unified `inference.py` entrypoint

@@ -102,6 +102,8 @@ def parse_args():
     parser.add_argument("--transformer_path", type=str, required=True)
     parser.add_argument("--pretrained_wav2vec_path", type=str, required=True)
     parser.add_argument("--validation_reference_path", type=str, required=True)
+    parser.add_argument("--strict-reference", action="store_true",
+                        help="Prepare a candidate and stop for review if the reference needs preprocessing.")
     parser.add_argument("--skip_reference_check", action="store_true",
                         help="Do not check/auto-preprocess the reference into the "
                              "training distribution. For deliberate A/B tests only.")
@@ -466,30 +468,21 @@ def main():
     device = torch.device("cuda")
     weight_dtype = torch.bfloat16
 
-    # The reference has to be a training-distribution one: portrait aspect, subject
-    # matted onto white, face framed to the NeRSemble calibration. A raw photo used
-    # to sail straight through here and get non-uniformly squashed to height x width
-    # by get_image_to_video_latent, which previously accepted an unprocessed portrait. Warn and fix
-    # rather than abort -- a run that dies six hours in helps nobody.
-    # the gate now stops the job when the photo cannot be
-    # repaired. It runs before any model is loaded, so stopping here costs seconds,
-    # not hours; --allow_noncompliant_reference restores the warn-and-continue path.
-    # 2026-09-11: the gate no longer repairs anything on its own. A non-compliant
-    # photo is refused and a repaired candidate is written to _gate_candidate/
-    # for the user to inspect and pass in explicitly (the automatic swap had eaten
-    # the black hat of RM360 subject 0168).
-    if not args.skip_reference_check:
-        try:
-            args.validation_reference_path = ensure_reference(
-                args.validation_reference_path,
-                width=args.width, height=args.height,
-                cache_dir=os.path.join(args.output_dir, "_gate_candidate"),
-                tag="reference",
-                allow_noncompliant=args.allow_noncompliant_reference,
-            )
-        except ReferenceGateError as e:
-            print(f"[reference] REFUSED: {e}", flush=True)
-            sys.exit(3)
+    # Reuse the existing preprocessing before loading generation models. Save
+    # the exact image used; strict mode retains the historical review pause.
+    try:
+        args.validation_reference_path = ensure_reference(
+            args.validation_reference_path,
+            width=args.width, height=args.height,
+            cache_dir=os.path.join(args.output_dir, "_gate_candidate"),
+            tag="reference",
+            allow_noncompliant=args.allow_noncompliant_reference,
+            strict=args.strict_reference,
+            skip=args.skip_reference_check,
+        )
+    except ReferenceGateError as e:
+        print(f"[reference] STOPPED: {e}", flush=True)
+        sys.exit(3)
 
     # The 81-frame guard from the single-window sampler is gone: length is now set
     # by the audio, and each WINDOW is what has to stay near the trained size.
